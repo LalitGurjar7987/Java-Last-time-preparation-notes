@@ -1,0 +1,636 @@
+1 when we start a therad using t.start() so internally the start method do that thigs
+     1. // Check thread state
+    // Register thread with JVM
+    // Create new OS/JVM thread
+    start0();   // native method
+
+    2. then the nativ method start0() internally invoke out override run() method
+       ex= start0() causes the JVM to invoke run() on the new thread.
+Due to runtime polymorphism, if run() is overridden, the overridden version executes.
+
+
+NOTE =In synchronizesd block method and static  thread stop the working until thread get the lok like if thread 1 accure alock so thread 2 cant perform other task until thrread 1 release the lock
+
+____________________________________________________________________________________________________
+/* THREAD POOL
+
+# Java Thread Pool (ExecutorService) - Complete Notes
+
+## What is a Thread Pool?
+
+A Thread Pool is a collection of pre-created worker threads managed by `ExecutorService`. Instead of creating a new thread for every task, existing threads are reused.
+
+### Without Thread Pool
+
+```java
+for(int i = 0; i < 1000; i++) {
+    Thread t = new Thread(() -> {
+        System.out.println("Task Executed");
+    });
+    t.start();
+}
+```
+
+* Creates 1000 threads.
+* High memory consumption.
+* More context switching.
+* Poor performance.
+
+### With Thread Pool
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(5);
+```
+
+* Only 5 worker threads are created.
+* Threads are reused for multiple tasks.
+* Better performance and resource utilization.
+
+---
+
+## How Thread Pool Works Internally
+
+Suppose:
+
+```java
+ExecutorService pool = Executors.newFixedThreadPool(3);
+```
+
+Internally:
+
+```text
+Worker Thread 1
+Worker Thread 2
+Worker Thread 3
+
+Task Queue
+```
+
+When tasks are submitted:
+
+```java
+pool.execute(task);
+```
+
+* If a worker thread is free, it executes the task immediately.
+* Otherwise, the task is placed in a queue.
+* When a worker thread finishes its current task, it picks the next task from the queue.
+
+Example:
+
+```text
+Thread-1 -> Task1
+Thread-2 -> Task2
+Thread-3 -> Task3
+
+Queue:
+Task4
+Task5
+Task6
+```
+
+After Thread-1 finishes Task1:
+
+```text
+Thread-1 -> Task4
+```
+
+---
+
+## Does ExecutorService Create Threads?
+
+Yes.
+
+```java
+ExecutorService pool =
+        Executors.newFixedThreadPool(3);
+```
+
+`ExecutorService` creates and manages worker threads.
+
+When you submit a task:
+
+```java
+pool.submit(() -> {
+    System.out.println("Hello");
+});
+```
+
+You are not creating a new thread. You are simply providing a task to an existing worker thread.
+
+---
+
+## Runnable vs Callable
+
+### Runnable
+
+* Introduced in Java 1.0
+* Does not return a value
+* Contains `run()` method
+
+```java
+Runnable task = () -> {
+    System.out.println("Hello");
+};
+```
+
+### Callable
+
+* Introduced in Java 5
+* Returns a value
+* Contains `call()` method
+
+```java
+Callable<Integer> task = () -> 100;
+```
+
+---
+
+## Can We Pass a Normal Class to ExecutorService?
+
+No.
+
+This is invalid:
+
+```java
+class Student {
+    void display() {
+        System.out.println("Hello");
+    }
+}
+
+pool.execute(new Student()); // Compile Error
+```
+
+Reason:
+
+`execute()` expects a `Runnable`.
+
+### Correct Way
+
+```java
+Student s = new Student();
+
+pool.execute(() -> s.display());
+```
+
+The lambda creates a `Runnable` that calls the method.
+
+---
+
+## execute() vs submit()
+
+### execute()
+
+```java
+pool.execute(() -> {
+    System.out.println("Task");
+});
+```
+
+* Accepts only `Runnable`
+* Returns `void`
+* No result is returned
+
+Method signature:
+
+```java
+void execute(Runnable command)
+```
+
+### submit()
+
+```java
+Future<Integer> future =
+        pool.submit(() -> 10 + 20);
+```
+
+* Accepts both `Runnable` and `Callable`
+* Returns a `Future`
+* Can return results
+
+---
+
+## Can execute() and submit() Be Used Interchangeably?
+
+| Method    | Runnable | Callable |
+| --------- | -------- | -------- |
+| execute() | ✅ Yes    | ❌ No     |
+| submit()  | ✅ Yes    | ✅ Yes    |
+
+Examples:
+
+```java
+pool.execute(() -> System.out.println("Hello"));
+```
+
+✅ Valid
+
+```java
+Callable<Integer> task = () -> 100;
+
+pool.execute(task);
+```
+
+❌ Compile Error
+
+```java
+pool.submit(() -> System.out.println("Hello"));
+```
+
+✅ Valid
+
+```java
+pool.submit(() -> 100);
+```
+
+✅ Valid
+
+---
+
+## What is Future?
+
+A `Future` represents the result of an asynchronous task.
+
+```java
+Callable<Integer> task = () -> 10 + 20;
+
+Future<Integer> future = pool.submit(task);
+```
+
+The task runs in another thread while the `Future` acts as a placeholder for the result.
+
+### Getting the Result
+
+```java
+Integer result = future.get();
+```
+
+Output:
+
+```text
+30
+```
+
+If the task is not finished, `get()` waits until it completes.
+
+---
+
+## Important Future Methods
+
+### get()
+
+Returns the result.
+
+```java
+future.get();
+```
+
+### isDone()
+
+Checks whether the task has completed.
+
+```java
+future.isDone();
+```
+
+Returns:
+
+```text
+true / false
+```
+
+### cancel()
+
+Attempts to cancel the task.
+
+```java
+future.cancel(true);
+```
+
+---
+
+## Future vs join()
+
+| Feature             | Thread.join() | Future |
+| ------------------- | ------------- | ------ |
+| Wait for completion | ✅             | ✅      |
+| Return value        | ❌             | ✅      |
+| Check task status   | ❌             | ✅      |
+| Cancel task         | ❌             | ✅      |
+
+Example:
+
+```java
+thread.join();
+```
+
+Only waits.
+
+```java
+Future<Integer> future =
+        pool.submit(() -> 100);
+
+int result = future.get();
+```
+
+Waits and returns a result.
+
+---
+
+## Interview Points
+
+1. `ExecutorService` creates and manages worker threads.
+2. Thread pools reuse threads instead of creating new ones for every task.
+3. `Runnable` does not return a value.
+4. `Callable` returns a value.
+5. `execute()` accepts only `Runnable`.
+6. `submit()` accepts both `Runnable` and `Callable`.
+7. `submit()` returns a `Future`.
+8. `Future` is used to get results, check status, and cancel tasks.
+9. Normal classes cannot be passed directly to `execute()` or `submit()` unless they implement `Runnable` or `Callable`.
+10. Thread pools improve performance by reducing thread creation overhead.
+
+### Easy Analogy
+
+```text
+ExecutorService = Manager
+Thread = Worker
+Runnable/Callable = Job
+Future = Receipt for the job result
+```
+
+You submit a job to the manager. The manager assigns it to an available worker. If the job produces a result, you receive a Future that allows you to collect the result later.
+
+*/
+____________________________________________________________________________________________________
+
+/* THREADLOCAl
+
+# Java ThreadLocal - Short Notes
+
+## What is ThreadLocal?
+
+`ThreadLocal` provides a separate copy of a variable for each thread.
+
+Normally, instance variables belong to an object and are shared when multiple threads use the same object.
+
+With `ThreadLocal`, the value belongs to the thread instead of the object.
+
+---
+
+## Why Do We Need ThreadLocal?
+
+### Shared Object
+
+```java
+class Counter {
+    int count = 0;
+}
+
+Counter c = new Counter();
+
+Thread t1 = new Thread(() -> c.count++);
+Thread t2 = new Thread(() -> c.count++);
+```
+
+Memory:
+
+```text
+Thread-1
+      \
+       --> Counter Object (count)
+      /
+Thread-2
+```
+
+Both threads share the same `count`.
+
+---
+
+### Using ThreadLocal
+
+```java
+ThreadLocal<Integer> count =
+        ThreadLocal.withInitial(() -> 0);
+```
+
+Memory:
+
+```text
+Thread-1 -> count = 10
+Thread-2 -> count = 20
+Thread-3 -> count = 30
+```
+
+Each thread gets its own value.
+
+---
+
+## Important Methods
+
+### set()
+
+```java
+threadLocal.set("Lalit");
+```
+
+Stores a value for the current thread.
+
+### get()
+
+```java
+String name = threadLocal.get();
+```
+
+Gets the value of the current thread.
+
+### remove()
+
+```java
+threadLocal.remove();
+```
+
+Removes the value associated with the current thread.
+
+---
+
+## Same Object + Multiple Threads
+
+```java
+class MyTask implements Runnable {
+
+    private ThreadLocal<Integer> count =
+            ThreadLocal.withInitial(() -> 0);
+
+    @Override
+    public void run() {
+
+        count.set(count.get() + 1);
+
+        System.out.println(
+                Thread.currentThread().getName()
+                + " -> " + count.get());
+
+        count.remove();
+    }
+}
+```
+
+```java
+MyTask task = new MyTask();
+
+Thread t1 = new Thread(task);
+Thread t2 = new Thread(task);
+Thread t3 = new Thread(task);
+```
+
+Output:
+
+```text
+Thread-0 -> 1
+Thread-1 -> 1
+Thread-2 -> 1
+```
+
+Even though all threads use the same object, each thread has its own value.
+
+---
+
+## Internal Working
+
+Each thread maintains its own `ThreadLocalMap`.
+
+```text
+Thread-1
+   |
+   ---> ThreadLocalMap
+          user -> Lalit
+
+Thread-2
+   |
+   ---> ThreadLocalMap
+          user -> Rahul
+```
+
+The value is stored inside the thread, not inside the `ThreadLocal` object.
+
+---
+
+## ThreadLocal in Thread Pool
+
+ThreadLocal is commonly used with thread pools.
+
+```java
+ExecutorService pool =
+        Executors.newFixedThreadPool(2);
+```
+
+Example:
+
+```java
+private static ThreadLocal<String> user =
+        new ThreadLocal<>();
+```
+
+```java
+try {
+    user.set("Lalit");
+
+    // business logic
+
+} finally {
+    user.remove();
+}
+```
+
+### Why remove() is Important?
+
+Thread pool threads are reused.
+
+```text
+Task 1 -> Thread-1 -> user = Lalit
+
+Thread-1 returns to pool
+
+Task 2 -> Thread-1
+```
+
+Without `remove()`:
+
+```java
+user.get();
+```
+
+Output:
+
+```text
+Lalit
+```
+
+Task 2 may see old data left by Task 1.
+
+Always use:
+
+```java
+try {
+    threadLocal.set(value);
+
+} finally {
+    threadLocal.remove();
+}
+```
+
+---
+
+## Real-World Uses
+
+* User Session Information
+* Database Connections
+* Transaction Management
+* Security Context
+* Request Context
+
+Frameworks like Spring use ThreadLocal internally.
+
+---
+
+## Instance Variable vs ThreadLocal
+
+| Feature                  | Instance Variable | ThreadLocal |
+| ------------------------ | ----------------- | ----------- |
+| Belongs To               | Object            | Thread      |
+| Shared by Threads        | Yes (same object) | No          |
+| Requires Synchronization | Often Yes         | No          |
+| Separate Copy            | Per Object        | Per Thread  |
+
+---
+
+## Interview Points
+
+1. `ThreadLocal` gives each thread its own copy of a variable.
+2. Values are isolated between threads.
+3. Main methods: `set()`, `get()`, `remove()`.
+4. Value is stored inside the thread (`ThreadLocalMap`).
+5. Useful when multiple threads use the same object but need separate data.
+6. Commonly used with thread pools.
+7. Always call `remove()` in thread pools to avoid stale data and memory leaks.
+
+### Easy Analogy
+
+```text
+Instance Variable -> Locker belongs to Object
+
+ThreadLocal -> Locker belongs to Thread
+```
+
+Each thread gets its own private locker (value).
+
+NOTE = ThreadLocal → Each thread gets its own private value.
+
+InheritableThreadLocal → Same as ThreadLocal, but when a child thread is created, it automatically receives a copy of the parent's value. This inheritance happens only at thread creation time, not when thread-pool threads are reused.
+
+____________________________________________________________________________________________________
+
+
+
